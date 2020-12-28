@@ -5,7 +5,7 @@
 
 **Hightlight**
 - :wink: Support RPC orthorectification, radiometric correction, atmospheric correction, pansharpening, mosaic.
-- :yum: Convenient to install dependence and easy to run.
+- :yum: Convenient to install and easy to run.
 - :heart_eyes: Fast speed comes with GDAL, minimize time costs by processing in parallel
 
 ### Installation
@@ -28,10 +28,9 @@ python /parallel_batch.py --InputFolder /InputFolder --OutputFolder /OutputFolde
 `/InputFolder` is where your raw datasets located,  `/OutputFolder` is where you store the preprecessed imagerys, `--_6S`, `--pansharpen` and `--pyramid` are optional depend on your needs.
 For beginners, you can also just run `batch.py` and `parallel_batch.py` in an IDE, a simple but tolerable GUI will pop up to receive the parameters.
 
+<img src="doc/2020-12-28_15-34.png" width="350">
 
-![GUI](doc/2020-12-28_15-34.png=250x250)
-
-Test datasets are available at [GoogleDrive](https) and [Cloudflare](https)
+Test datasets are available at [GoogleDrive](https://drive.google.com/drive/folders/1XeAxqUphI9D8pufh0HUBWtQn5WDfPPfc?usp=sharing) and [Cloudflare](https://icy-sun-e02a.genghisyang.workers.dev)
 
 ### Acknowledgements
 
