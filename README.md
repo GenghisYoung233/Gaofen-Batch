@@ -29,7 +29,7 @@ python /parallel_batch.py --InputFolder /InputFolder --OutputFolder /OutputFolde
 For beginners, you can also just run `batch.py` and `parallel_batch.py` in an IDE, a simple but tolerable GUI will pop up to receive the parameters.
 
 
-![GUI](doc/2020-12-28_15-34.png)
+![GUI](doc/2020-12-28_15-34.png=250x250)
 
 Test datasets are available at [GoogleDrive](https) and [Cloudflare](https)
 
