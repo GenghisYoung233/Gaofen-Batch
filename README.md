@@ -1,37 +1,39 @@
-# Gaofen-Batch:
-#### A batch preprocessing tool for Gaofen(高分) satellite imagery
+## 基于python的高分遥感数据一键批处理工具
 
->This project is still work in progress. Only GF1/2/6, GF1/B/C/D are supported yet.
+>该工具仍在开发中，目前仅支持GF1/2/6，GF1B/C/D
 
-**Hightlight**
-- :wink: Support RPC orthorectification, radiometric correction, atmospheric correction, pansharpening, mosaic.
-- :yum: Convenient to install and easy to run.
-- :heart_eyes: Fast speed comes with GDAL, minimize time costs by processing in parallel
+**特点**
+- :wink: 支持RPC正射校正，辐射定标，6S大气校正，融合，镶嵌。
+- :yum: 安装简单，运行方便。
+- :heart_eyes: 默认多线程，可并行处理。
 
-### Installation
-#### Linux and Windows
+### 安装（Linux，Windows）
 
-Install [Anaconda](https://docs.anaconda.com/anaconda/install/) or [miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/), execute this line.
+* 安装[Anaconda](https://docs.anaconda.com/anaconda/install/)或[miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/)
+* 新建环境，安装依赖.
 ```bash
 conda create -n pre -c conda-forge gdal py6s pysimplegui
 ```
 
-### Getting Started
-#### Processing single dataset at one time
+### 使用
+#### 运行单个程序，依次处理
 ```bash
-python /batch.py --InputFolder /InputFolder --OutputFolder /OutputFolder --_6S --pansharpen --pyramid
+python batch.py --InputFolder ./InputFolder --OutputFolder ./OutputFolder --_6S --pansharpen --pyramid
 ```
-#### Processing multiple datasets in parallel
+#### 运行多个程序，并行处理
 ```bash
-python /parallel_batch.py --InputFolder /InputFolder --OutputFolder /OutputFolder --_6S --pansharpen --pyramid --n_parallel 3
+python parallel_batch.py --InputFolder ./InputFolder --OutputFolder ./OutputFolder --_6S --pansharpen --pyramid --n_parallel 3
 ```
-`/InputFolder` is where your raw datasets located,  `/OutputFolder` is where you store the preprecessed imagerys, `--_6S`, `--pansharpen` and `--pyramid` are optional depend on your needs.
-For beginners, you can also just run `batch.py` and `parallel_batch.py` in an IDE, a simple but tolerable GUI will pop up to receive the parameters.
+* `--InputFolder`是原始数据文件夹，`--OutputFolder`是处理结果文件夹。大气校正`--_6S`，融合`--pansharpen`，建金字塔`--pyramid`取决于后续实验需要
+* 如果对命令行感到陌生，可以在IDE中运行`batch.py`或`parallel_batch.py`，会有一个简陋的界面弹出
 
-<img src="doc/2020-12-28_15-34.png" width="350">
+* <img src="doc/2020-12-28_15-34.png" width="350">
 
-Test datasets are available at [GoogleDrive](https://drive.google.com/drive/folders/1XeAxqUphI9D8pufh0HUBWtQn5WDfPPfc?usp=sharing) and [Cloudflare](https://icy-sun-e02a.genghisyang.workers.dev)
+* 测试数据可通过[GoogleDrive](https://drive.google.com/drive/folders/1XeAxqUphI9D8pufh0HUBWtQn5WDfPPfc?usp=sharing)或[Cloudflare](https://icy-sun-e02a.genghisyang.workers.dev)获取
 
-### Acknowledgements
+### 注意事项
+* 要求32G以上内存，对于GF6-WFV的大气校正，需要64G以上内存
+* 并行处理内存将占用多倍内存
 
-The 6S atmospheric correction module in this repository is based on [Zhaoguanhua](https://github.com/Zhaoguanhua/AtmosphericCorrection)'s work.
+### 鸣谢
+* 本工具中6S大气校正模块引用 https://github.com/Zhaoguanhua/AtmosphericCorrection 在此感谢 Zhaoguanhua
