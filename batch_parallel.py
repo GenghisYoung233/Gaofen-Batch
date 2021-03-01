@@ -10,19 +10,20 @@ import random
 import PySimpleGUI as sg
 
 
-def main(InputFolder, OutputFolder, DEM, _6S, pansharpen, pyramid, n_parallel, cache):
+def main(InputFolder, OutputFolder, DEM, TOA, _6S, pansharpen, pyramid, n_parallel, cache):
     os.environ["GDAL_CACHEMAX"] = cache
     batch_file = os.path.join(os.path.dirname(__file__), 'batch.py')
     files_groups = split_datasets(InputFolder, n_parallel)
 
     start = time.time()
     processes = []
+    TOA = "--TOA" if TOA else ""
     _6S = "--_6S" if _6S else ""
     pansharpen = "--pansharpen" if pansharpen else ""
     pyramid = "--pyramid" if pyramid else ""
     for i, files in enumerate(files_groups):
         pid = i + 1
-        batch_cmd = f"python {batch_file} --InputFile_list {files} --OutputFolder {OutputFolder} --DEM {DEM} {_6S} {pansharpen} {pyramid} --pid {pid}"
+        batch_cmd = f"python {batch_file} --InputFile_list {files} --OutputFolder {OutputFolder} --DEM {DEM} {TOA} {_6S} {pansharpen} {pyramid} --pid {pid}"
         p = multiprocessing.Process(target=_subprocess, args=(batch_cmd,))
         p.start()
         time.sleep(5)
@@ -38,6 +39,7 @@ def main(InputFolder, OutputFolder, DEM, _6S, pansharpen, pyramid, n_parallel, c
 def split_datasets(InputFolder, n_parallel):
     # Split datasets to several groups
     files = glob.glob(os.path.join(InputFolder, "GF*"))
+    random.shuffle(files)
     files_groups = [x for x in range(n_parallel)]
     for i in range(n_parallel):
         files_groups[i] = " ".join(files[math.floor(i / n_parallel * len(files)):math.floor((i + 1) / n_parallel * len(files))])
@@ -66,11 +68,13 @@ def GUI():
                sg.Slider(range=(1, 8), default_value=2, size=(20, 15),
                          orientation='horizontal', font=('Helvetica', 25),
                          pad=((30, 50), (0, 50)))],
-              [sg.Checkbox('6S', default=False, font=("Helvetica", 25),
+              [sg.Checkbox('TOA', default=False, font=("Helvetica", 25),
                            pad=((10, 25), (0, 35))),
-               sg.Checkbox('Pansharpening', default=False, font=("Helvetica", 25),
+               sg.Checkbox('6S', default=False, font=("Helvetica", 25),
+                           pad=((10, 25), (0, 35)))],
+                [sg.Checkbox('Pansharpening', default=True, font=("Helvetica", 25),
                            pad=((10, 25), (0, 35))),
-               sg.Checkbox('Build Pyramid', default=False, font=("Helvetica", 25),
+               sg.Checkbox('Build Pyramid', default=True, font=("Helvetica", 25),
                            pad=((10, 25), (0, 35)))],
               [sg.Button('OK', font=("Helvetica", 25),
                          pad=((275, 50), (0, 0))),
@@ -78,7 +82,7 @@ def GUI():
                          pad=((30, 50), (0, 0)))]]
 
     # Create the Window
-    window = sg.Window('GaoFen Preprocess', layout, default_element_size=(30, 1), size=(1000, 900))
+    window = sg.Window('GaoFen Preprocess', layout, default_element_size=(30, 1), size=(700, 850))
 
     # Get the "values" of the inputs
     event, values = window.read(close=True)
@@ -99,6 +103,9 @@ if __name__ == "__main__":
     parser.add_argument('--DEM', dest='DEM',
                         help='path for DEM',
                         type=str, default=os.path.join(os.path.dirname(__file__), 'data', 'GMTED2km.tif'))
+    parser.add_argument('--TOA', dest='TOA',
+                        help='Whether convert to TOA',
+                        action='store_true', default=False)
     parser.add_argument('--_6S', dest='_6S',
                         help='Whether to perform 6S atmospheric correction',
                         action='store_true', default=False)
@@ -118,8 +125,8 @@ if __name__ == "__main__":
 
     # If there is no input from console, open graphic user interface
     if args.InputFolder and args.OutputFolder:
-        main(args.InputFolder, args.OutputFolder, args.DEM, args._6S, args.pansharpen, args.pyramid, args.n_parallel, args.cache)
+        main(args.InputFolder, args.OutputFolder, args.DEM, args.TOA, args._6S, args.pansharpen, args.pyramid, args.n_parallel, args.cache)
     else:
-        InputFolder, OutputFolder, DEM, n_parallel, _6S, pansharpen, pyramid = GUI()
+        InputFolder, OutputFolder, DEM, n_parallel, TOA, _6S, pansharpen, pyramid = GUI()
         DEM = DEM if DEM else os.path.join(os.path.dirname(__file__), 'data', 'GMTED2km.tif')
-        main(InputFolder, OutputFolder, DEM, _6S, pansharpen, pyramid, int(n_parallel), "5%")
+        main(InputFolder, OutputFolder, DEM, TOA, _6S, pansharpen, pyramid, int(n_parallel), "5%")
