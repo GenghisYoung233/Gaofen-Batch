@@ -24,7 +24,7 @@ python batch.py --InputFolder ./InputFolder --OutputFolder ./OutputFolder --TOA 
 ```bash
 python batch_parallel.py --InputFolder ./InputFolder --OutputFolder ./OutputFolder --TOA --_6S --pansharpen --pyramid --n_parallel 3
 ```
-* `--InputFolder`是原始数据文件夹，`--OutputFolder`是处理结果文件夹。大气表观发射率计算`--TOA`，大气校正`--_6S`，融合`--pansharpen`，建金字塔`--pyramid`取决于后续实验需要
+* `--InputFolder`是原始数据文件夹，`--OutputFolder`是处理结果文件夹。大气表观发射率计算`--TOA`、大气校正`--_6S`、融合`--pansharpen`、建金字塔`--pyramid`取决于后续实验需要
 * 如果对命令行感到陌生，可以在IDE中运行`batch.py`或`parallel_batch.py`，会有一个简陋的界面弹出
 
 * <img src="doc/gui.png" width="350">
