@@ -1,6 +1,6 @@
 ## 基于python的高分遥感数据一键批处理工具
 
->该工具仍在开发中，目前仅支持GF1/2/6，GF1B/C/D
+>目前支持GF1/2/6，GF1B/C/D
 
 **特点**
 - :wink: 支持RPC正射校正，辐射定标，大气表观发射率（TOA）计算，6S大气校正，融合，镶嵌。
@@ -31,9 +31,6 @@ python batch_parallel.py --InputFolder ./InputFolder --OutputFolder ./OutputFold
 
 * 测试数据可通过[GoogleDrive](https://drive.google.com/drive/folders/1bdSWUnCdw3NZGtb9EpDPr4VY_z7sLmOX?usp=sharing)或[Cloudflare](https://icy-sun-e02a.genghisyang.workers.dev)获取
 
-### 注意事项
-* 要求32G以上内存，对于GF6-WFV的大气校正，需要64G以上内存
-* 并行处理内存将占用多倍内存
 
 ### 鸣谢
 * 本工具中6S大气校正模块引用 https://github.com/Zhaoguanhua/AtmosphericCorrection 在此感谢 Zhaoguanhua
