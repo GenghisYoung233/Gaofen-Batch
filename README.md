@@ -29,7 +29,7 @@ python batch_parallel.py --InputFolder ./InputFolder --OutputFolder ./OutputFold
 
 * <img src="doc/gui.png" width="350">
 
-* 测试数据可通过[GoogleDrive](https://drive.google.com/drive/folders/1bdSWUnCdw3NZGtb9EpDPr4VY_z7sLmOX?usp=sharing)或[Cloudflare](https://icy-sun-e02a.genghisyang.workers.dev)获取
+* 测试数据可通过[Cloudflare](https://github.com/GenghisYoung233/Gaofen-Batch/issues/1#issuecomment-1308188719)获取
 
 
 ### 鸣谢
