@@ -41,7 +41,7 @@
 
 如果你没有数据，可从[这里](https://gaofen-batch-r2.remotesensing.top)获取测试数据。
 
-## 演示Gif
+## 演示Gif（×10倍速）
 
 <img src="/assets/GaofenBatch.gif" alt="demo" width="500"/>  
 
