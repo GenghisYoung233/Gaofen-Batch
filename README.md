@@ -35,7 +35,7 @@
 
 ## 如何使用
 
-1. 从项目的(Release)[https://github.com/GenghisYoung233/Gaofen-Batch/releases]下载程序，解压到本地，路径避免中文和空格。
+1. 从项目的[Release](https://github.com/GenghisYoung233/Gaofen-Batch/releases)下载程序，解压到本地，路径避免中文和空格。
 2. 双击GaofenBatch.exe，添加待处理数据（原始.tar.gz压缩包）。
 3. 点击“运行”按钮，选择输出文件夹，程序开始逐个解压并处理数据。
 
