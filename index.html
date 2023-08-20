@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <!--
+    TODO: 
+    1. √ 编译Python代码，将后端程序放入Electron项目目录中，修改command，自动找到目录内编译后的python可执行文件，测试Electron能否正常运行
+    2. √ 编译Electron项目，用之前的logo，生成可执行文件，测试可执行文件能否正常运行
+    3. 打包Electron项目，复制到笔记本，测试能够正常运行
+    4. 周一去502试试，看能不能跑
+    5. 仿照ytdpl-gui项目，重新写readme，准备发布
+-->
+    <title>Gaofen Batch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC&family=ZCOOL+KuaiLe&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/octicons/8.5.0/build.css">
+    <style>
+        #container {
+            display: flex;
+            flex-direction: column;
+            height: 95vh;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        #top {
+            height: 10%;
+            padding: 10px;
+            border-bottom: 5px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            /* background: url('./assets/mosaic.jpg');
+            background-size: cover; */
+        }
+
+        #left-buttons {
+            display: flex;
+            align-items: center;
+        }
+
+        #githubLink {
+            background: url('https://raw.githubusercontent.com/primer/octicons/main/icons/mark-github-16.svg') no-repeat center;
+            background-size: 34px 34px;
+            width: 34px;
+            height: 34px;
+            display: inline-block;
+        }
+
+
+        .icon-button {
+            border: none;
+            padding: 10px 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-button:hover {
+            opacity: 0.8;
+        }
+
+        .icon-button i {
+            font-size: 24px;
+        }
+
+        .icon-button+.icon-button {
+            margin-left: 10px;
+        }
+
+        #addFile {
+            background-color: #00b8f6;
+            color: white;
+        }
+
+        #startProgram {
+            background-color: #008000;
+            color: white;
+        }
+
+        #settings {
+            background-color: #000000;
+            color: white;
+        }
+
+        #clean {
+            background-color: #FF0000;
+            color: white;
+        }
+
+        #cancel {
+            margin-top: auto;
+        }
+
+        .settings-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .settings-modal {
+            display: none;
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            z-index: 1000;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+            margin-left: 10px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #2196F3;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(26px);
+        }
+
+        .slider:after {
+            content: '';
+            color: white;
+            display: block;
+            position: absolute;
+            transform: translate(-50%, -50%);
+            top: 50%;
+            left: 50%;
+            font-size: 12px;
+            font-family: Verdana, sans-serif;
+        }
+
+        input:checked+.slider:after {
+            content: '';
+        }
+
+        label {
+            display: flex;
+            align-items: center;
+            font-weight: bold;
+        }
+
+        .close-icon {
+            cursor: pointer;
+            color: #555;
+            font-size: 24px;
+            transition: color 0.3s;
+        }
+
+        .close-icon:hover {
+            color: #000;
+        }
+
+        .file-container {
+            height: 45%;
+            padding: 10px;
+            border-bottom: 3px solid #a0a0a0;
+            overflow: auto;
+            position: relative;
+        }
+
+        .file-container::before {
+            content: "📦➕\A 队列为空 \A 请添加文件";
+            white-space: pre;
+            display: flex;
+            align-items: center;
+            text-align: center;
+            justify-content: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            color: #888;
+            z-index: -1;
+            font-size: 24px;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .file-container.not-empty::before {
+            content: "";
+        }
+
+        .table-header,
+        .table-row {
+            display: grid;
+            grid-template-columns: 1fr 100px 100px 100px;
+            gap: 10px;
+            align-items: center;
+            text-align: left;
+            border-bottom: 1px solid #ccc;
+            padding: 8px;
+        }
+
+        .table-header {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+
+        .file-path {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            padding-right: 5px;
+            text-align: left;
+            cursor: ew-resize;
+        }
+
+        #console {
+            height: 40%;
+            padding: 10px;
+            overflow-y: auto;
+            font-family: 'Cascadia Mono', 'Roboto', sans-serif, 'Courier New', monospace;
+            color: #000000;
+            background-color: #f9f9f9;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+
+<body onload="printStartupMessage()">
+    <div id="container">
+        <div id="top">
+            <div id="left-buttons">
+                <button class="icon-button" id="addFile" title="添加文件"><i class="material-icons">library_add</i></button>
+                <button class="icon-button" id="startProgram" title="开始处理"><i
+                        class="material-icons">play_arrow</i></button>
+                <button class="icon-button" id="settings" title="设置"><i class="material-icons">settings</i></button>
+                <button class="icon-button" id="clean" title="清空文件列表"><i
+                        class="material-icons">cleaning_services</i></button>
+            </div>
+            <a href="#" id="githubLink" title="GitHub Homepage"></a>
+        </div>
+
+        <div class="settings-modal" id="settingsModal">
+            <div class="settings-content">
+                <label>大气校正
+                    <label class="switch">
+                        <input type="checkbox" id="typeSwitch" checked>
+                        <span class="slider"></span>
+                    </label>
+                </label>
+                <br>
+                <br>
+                <label>图像融合
+                    <label class="switch">
+                        <input type="checkbox" id="imageFusionSwitch" checked>
+                        <span class="slider"></span>
+                    </label>
+                </label>
+                <br>
+                <br>
+                <label>建金字塔
+                    <label class="switch">
+                        <input type="checkbox" id="pyramidSwitch" checked>
+                        <span class="slider"></span>
+                    </label>
+                </label>
+                <br>
+                <!-- Replacing the close button with an icon -->
+                <!-- Change the content of the clean button to display the cleaning icon -->
+                <button class="icon-button" id="cancel"><i class="material-icons">cancel</i></button>
+            </div>
+        </div>
+
+        <div class="file-container">
+            <div class="table-header">
+                <div>文件名</div>
+                <div>大小</div>
+                <div>状态</div>
+                <div>操作</div>
+            </div>
+            <!-- Additional file rows will be dynamically added here -->
+        </div>
+
+        <div id="console">
+            <!-- Logs will be printed here -->
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer, shell } = require('electron');
+        const { spawn } = require('child_process');
+        const iconv = require('iconv-lite');
+        const fs = require('fs');
+        const path = require('path');
+
+        // Override console.log to send messages to the main process and update the console
+        console.log = (function (oldFunction) {
+            return function (text) {
+                ipcRenderer.send('log', text);
+
+                const consoleDiv = document.getElementById('console');
+                consoleDiv.innerText += text + '\n';
+
+                // Remove earliest 1000 lines if lines exceed 3000
+                const lines = consoleDiv.innerText.split('\n');
+                if (lines.length > 3000) {
+                    consoleDiv.innerText = lines.slice(1000).join('\n');
+                }
+
+                // Auto-scroll to the bottom
+                consoleDiv.scrollTop = consoleDiv.scrollHeight;
+
+                oldFunction(text);
+            };
+        })(console.log);
+
+
+        function printStartupMessage() {
+            const consoleDiv = document.getElementById('console');
+            // Clear the console
+            consoleDiv.innerText = '';
+
+            const currentTime = new Date().toLocaleString();
+            console.log(`启动服务（${currentTime}）`);
+            console.log('Gaofen-Batch, streamlines raster preprocessing of China-made satellite. Powered by GDAL and Electron.');
+        }
+
+        // Settings Modal functions
+        function openSettings() {
+            document.getElementById('settingsModal').style.display = 'block';
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').style.display = 'none';
+        }
+
+        function clearFileContainer() {
+            const fileContainer = document.querySelector('.file-container');
+            const fileRows = fileContainer.querySelectorAll('.table-row');
+            fileRows.forEach(row => {
+                fileContainer.removeChild(row);
+            });
+        }
+
+        // Add file button listener
+        document.getElementById('addFile').addEventListener('click', () => {
+            ipcRenderer.send('open-file-dialog');
+        });
+        document.querySelector('.file-container').addEventListener('click', function (event) {
+            if (!this.querySelector('.table-row')) {
+                document.getElementById('addFile').click();
+            }
+        });
+        document.getElementById('startProgram').addEventListener('click', () => {
+            ipcRenderer.send('open-directory-dialog');
+        });
+        document.getElementById('settings').addEventListener('click', openSettings);
+        document.getElementById('cancel').addEventListener('click', closeSettings);
+        document.getElementById('clean').addEventListener('click', clearFileContainer);
+        document.getElementById('githubLink').addEventListener('click', () => {
+            shell.openExternal('https://github.com/GenghisYoung233/Gaofen-Batch');
+        });
+
+        // Listener for receiving selected files
+        ipcRenderer.on('selected-files', (event, files) => {
+            const fileContainer = document.querySelector('.file-container');
+            files.forEach(file => {
+                const tableRow = document.createElement('div');
+                tableRow.className = 'table-row';
+
+                // Extracting file name from the file path
+                const fileName = file.split('\\').pop();
+
+                // Create fileName div
+                const fileNameDiv = document.createElement('div');
+                fileNameDiv.className = 'file-path';
+                fileNameDiv.title = file;
+                fileNameDiv.textContent = fileName;
+                tableRow.appendChild(fileNameDiv);
+
+                // Get file size in GB and round to two decimal places
+                const fileSizeInBytes = fs.statSync(file).size;
+                const fileSizeInGB = (fileSizeInBytes / (1024 * 1024 * 1024)).toFixed(2);
+
+                // Create fileSize div
+                const fileSizeDiv = document.createElement('div');
+                fileSizeDiv.textContent = `${fileSizeInGB} G`;
+                tableRow.appendChild(fileSizeDiv);
+
+                // Create fileStatus div (empty for now)
+                const fileStatusDiv = document.createElement('div');
+                tableRow.appendChild(fileStatusDiv);
+
+                // Create delete button
+                const deleteButtonDiv = document.createElement('div');
+                const deleteButton = document.createElement('button');
+                deleteButton.innerHTML = '<i class="material-icons">close</i>';
+                deleteButton.addEventListener('click', () => {
+                    fileContainer.removeChild(tableRow);
+                });
+                deleteButtonDiv.appendChild(deleteButton);
+                tableRow.appendChild(deleteButtonDiv);
+
+                fileContainer.appendChild(tableRow);
+
+                if (document.querySelectorAll('.file-container .table-row').length > 0) {
+                    document.querySelector('.file-container').classList.add('not-empty');
+                }
+            });
+        });
+
+        // Listen for the selected directory path
+        ipcRenderer.on('selected-directory', (event, directoryPath) => {
+            const checkbox0Arg = document.getElementById('typeSwitch').checked ? 'Surface_Reflectance' : 'DN';
+            const checkbox1Arg = document.getElementById('imageFusionSwitch').checked ? '--pansharpen' : '';
+            const checkbox2Arg = document.getElementById('pyramidSwitch').checked ? '--pyramid' : '';
+
+            const allFilePaths = Array.from(document.querySelectorAll('.file-path'));
+
+            function runFile(fileDiv) {
+                if (!fileDiv) return;
+                // Mark file as running
+                const fileStatusDiv = fileDiv.nextElementSibling.nextElementSibling;
+                fileStatusDiv.textContent = "运行中...";
+
+                const filePath = fileDiv.title;
+                const command = path.join(__dirname, '..', '..', 'bin', 'main.exe');
+                const args = [
+                    '--files', filePath,
+                    '--outputDirectory', directoryPath,
+                    '--level', checkbox0Arg
+                ];
+                if (checkbox1Arg) args.push(checkbox1Arg);
+                if (checkbox2Arg) args.push(checkbox2Arg);
+
+                const process = spawn(command, args);
+
+                process.stdout.on('data', (data) => {
+                    const decodedData = iconv.decode(data, 'GB2312');
+                    console.log(decodedData);
+                });
+
+                process.stderr.on('data', (data) => {
+                    const decodedData = iconv.decode(data, 'GB2312');
+                    console.log(decodedData);
+                });
+
+
+                process.on('exit', (code) => {
+                    if (code === 0) {
+                        fileStatusDiv.textContent = "已完成";
+                        runFile(allFilePaths.shift());
+                    } else {
+                        console.log(`Child process exited with code ${code}`);
+                    }
+                });
+            }
+
+            runFile(allFilePaths.shift());
+        });
+    </script>
+</body>
+
+</html>

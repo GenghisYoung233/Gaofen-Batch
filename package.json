@@ -1,0 +1,27 @@
+{
+  "name": "gaofen-batch",
+  "version": "0.1.0",
+  "description": "Gaofen-Batch, streamlines raster preprocessing of China-made satellite. Powered by GDAL and Electron.",
+  "main": "main.js",
+  "scripts": {
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build":{
+    "appId": "https://github.com/GenghisYoung233/Gaofen-Batch",
+    "productName": "Gaofen Batch",
+    "win": {
+      "target": "portable",
+      "icon": "./assets/app_icon.ico"
+    }
+  },
+  "author": "Genghisyang233",
+  "devDependencies": {
+    "electron": "^26.0.0",
+    "electron-builder": "^24.6.3"
+  },
+  "dependencies": {
+    "electron-log": "^4.4.8",
+    "iconv-lite": "^0.6.3"
+  }
+}
