@@ -43,7 +43,9 @@
 
 ## 演示Gif（×10倍速）
 
-<img src="/assets/GaofenBatch.gif" alt="demo" width="500"/>  
+<!-- <img src="/assets/GaofenBatch.gif" alt="demo" width="500"/> -->
+<img src="/assets/GaofenBatch.gif" alt="demo" width="500" onerror="this.onerror=null;this.src='410445dd94fe2c91201cdc6ce03d7006.r2.cloudflarestorage.com/gaofen-batch/assets/GaofenBatch.gif';" />
+
 
 ## 从源码编译
 
