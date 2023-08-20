@@ -1,7 +1,8 @@
-<img src="https://raw.githubusercontent.com/GenghisYoung233/Gaofen-Batch/assets/app_icon.png" alt="Icon" align="left" height="100"/>
+<img src="https://raw.githubusercontent.com/GenghisYoung233/Gaofen-Batch/main/assets/app_icon.png" alt="logo" align="left" height="100"/>
+
 # Gaofen Batch
 
-Gaofen-Batch，基于GDAL和Electron的国产卫星影像预处理工具
+基于GDAL和Electron的国产卫星影像预处理工具
 
 ### 特性:
 - 😉 GDAL驱动，省时高效，结果可靠。
@@ -30,7 +31,7 @@ Gaofen-Batch，基于GDAL和Electron的国产卫星影像预处理工具
 | ZY1F_AHSI | ✅ | ❌ | / |
 | ZY303_TMS | ✅ | ✅ | ✅ |
 
-> **注**: "✅" 表示支持，"/" 表示不需要，"❌" 表示不支持（缺少太阳辐照度数据）。
+> **注**: "✅" 表示支持，"❌" 表示不支持（缺少太阳辐照度数据）, "/" 表示不需要。
 
 ## 如何使用
 
@@ -42,7 +43,7 @@ Gaofen-Batch，基于GDAL和Electron的国产卫星影像预处理工具
 
 ## 演示Gif
 
-![Demo](GaofenBatch.gif)
+<img src="/assets/GaofenBatch.gif" alt="demo" width="500"/>  
 
 ## 从源码编译
 
