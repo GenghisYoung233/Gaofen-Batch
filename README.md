@@ -1,5 +1,4 @@
-<img src="https://raw.githubusercontent.com/GenghisYoung233/Gaofen-Batch/assets/app_icon.ico" alt="logo" align="left" height="100"/>
-
+<img src="https://raw.githubusercontent.com/GenghisYoung233/Gaofen-Batch/assets/app_icon.png" alt="Icon" align="left" height="100"/>
 # Gaofen Batch
 
 Gaofen-Batch，基于GDAL和Electron的国产卫星影像预处理工具
