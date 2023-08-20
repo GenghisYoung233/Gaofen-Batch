@@ -1,73 +1,109 @@
 import os
+import re
+import argparse
+import traceback
+import uuid
 import sys
-import osgeo
-from osgeo import gdal
-from Py6S import *
 import numpy as np
 import subprocess
 import tarfile
-import Py6S
-import json
+import yaml
+import shutil
 import xml.dom.minidom
-import rasterio as rio
+import rasterio
+import rasterio.control
+import rasterio.crs
+import rasterio.sample
+import rasterio.vrt
+import rasterio._features
+from itertools import product
+from tqdm import tqdm
+from os.path import join
+from glob import glob
+from loguru import logger
 
-def untar(fname, dirs):
+
+def untar(filePath, extractFolderPath):
+    logger.info("解压中...")
     try:
-        t = tarfile.open(fname)
-    except Exception as e:
-        print("文件%s打开失败" % fname)
-    t.extractall(path=dirs)
+        # Determine the mode based on file extension
+        if filePath.endswith('.tar.gz'):
+            mode = 'r:gz'
+        elif filePath.endswith('.tar.xz'):
+            mode = 'r:xz'
+        else:
+            mode = 'r'
+        
+        # Extract the tar file directly to extractFolderPath
+        with tarfile.open(filePath, mode) as tar:
+            tar.extractall(path=extractFolderPath)
+        
+        # Check for extra nested folders and adjust if necessary
+        extracted_folders = [f for f in os.listdir(extractFolderPath) if os.path.isdir(join(extractFolderPath, f))]
+        for folder in extracted_folders:
+            nested_path = join(extractFolderPath, folder)
+            if os.path.exists(nested_path):
+                for item in os.listdir(nested_path):
+                    shutil.move(join(nested_path, item), extractFolderPath)
+                os.rmdir(nested_path)
+    except Exception:
+        logger.error(f"文件{filePath}打开失败: \n", traceback.format_exc())
 
 
-def rpc_ortho(srcfile, dem, dstfile, pixel_size=None, utm=True, **kwargs):
+def rpc_ortho(srcfile, dem, dstfile, pixel_size=None, utm=True):
+    logger.info("RPC正射校正中...")
     pixel_size = f"-tr {pixel_size} {pixel_size} -tap" if pixel_size else ""
     if utm:
-        isNorth = 1 if os.path.basename(srcfile).split('_')[3][0] == 'N' else 0
-        zone = str(int(float(os.path.basename(srcfile).split('_')[2][1:]) / 6) + 31)  # int(longitude / 6) + 31
-        zone = int('326' + zone) if isNorth else int('327' + zone)
+        isNorth = 1 if os.path.basename(srcfile).split('_')[3][0] != 'S' else 0
+        for string in os.path.basename(srcfile).split('_'):
+            if re.match(r'^E\d', string) or re.match(r'^W\d', string):
+                zone = str(int(float(string[1:]) / 6) + 31)  # int(longitude / 6) + 31
+        zone = int('326' + zone) if isNorth == 1 else int('327' + zone)
         target_coords = f"EPSG:{zone}"
     else:
-        target_coords = "EPSG:4326" # WGS84
-    rpc_ortho_cmd = "gdalwarp -t_srs {target_coords} {pixel_size} -rpc -to RPC_DEM={RPC_DEM} -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=IF_SAFER -multi -wo NUM_THREADS=ALL_CPUS -co NUM_THREADS=ALL_CPUS -r cubic -dstnodata {nodata} -of GTiff -overwrite -q {srcfile} {dstfile}".format(target_coords=target_coords, pixel_size=pixel_size, RPC_DEM=dem, nodata=0.00, srcfile=srcfile, dstfile=dstfile)
+        target_coords = "EPSG:4326"  # WGS84
+    gdalwarp = join(otbPath, r"bin\gdalwarp.exe")
+    rpc_ortho_cmd = f"{gdalwarp} -t_srs {target_coords} {pixel_size} -rpc -to RPC_DEM={dem} -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=IF_SAFER -multi -wo NUM_THREADS=ALL_CPUS -co NUM_THREADS=ALL_CPUS -r cubic -dstnodata 0.00 -of GTiff -overwrite {srcfile} {dstfile}"
     subprocess.run([x for x in rpc_ortho_cmd.split(" ") if x != ""])
 
 
 def reproject(input_raster, output_raster, target_coords="EPSG:4326"):
-    reproj_cmd = f"gdalwarp -t_srs {target_coords} -r cubic -of GTiff -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=IF_SAFER -multi -wo NUM_THREADS=ALL_CPUS -co NUM_THREADS=ALL_CPUS -overwrite -q {input_raster} {output_raster}"
+    gdalwarp = join(otbPath, r"bin\gdalwarp.exe")
+    reproj_cmd = f"{gdalwarp} -t_srs {target_coords} -r cubic -of GTiff -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=IF_SAFER -multi -wo NUM_THREADS=ALL_CPUS -co NUM_THREADS=ALL_CPUS -overwrite {input_raster} {output_raster}"
     subprocess.run([x for x in reproj_cmd.split(" ") if x != ""])
 
 
-def pansharpening(spectral, pancromatic, output):
-    if sys.platform == "win32":
-        # Put gdal_pansharpen.py alongside this main.py
-        pansharpen_py = os.path.join(os.path.dirname(__file__), 'gdal_pansharpen.py')
-        version = osgeo.gdal.__version__
-        contents = f"__requires__ = 'GDAL=={version}'\n__import__('pkg_resources').run_script('GDAL=={version}', 'gdal_pansharpen.py')"
-        save_txt(pansharpen_py, contents, "w")
-        sys.path.append(os.getcwd())
-        from gdal_pansharpen import gdal_pansharpen
-        gdal_pansharpen(["", pancromatic, spectral, output, "-r", "cubic", "-of", "GTiff", "-threads", "ALL_CPUS", "-co", "NUM_THREADS=ALL_CPUS", "-co", "COMPRESS=LZW", "-co", "PREDICTOR=2", "-co", "BIGTIFF=IF_SAFER", "-q"])
-
-    elif "linux" in sys.platform:
-        pansharp_cmd = "gdal_pansharpen.py {} {} {} -r cubic -of GTiff -threads ALL_CPUS -co NUM_THREADS=ALL_CPUS -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=IF_SAFER".format(pancromatic, spectral, output)
-        subprocess.run([x for x in pansharp_cmd.split(" ") if x != ""])
+def pansharpening_otb(spectral, pancromatic, output):
+    logger.info("融合中...")
+    os.environ['OTB_appPath'] = join(otbPath, r"lib\otb\applications")
+    otb_bat = join(otbPath, r"bin\otbcli_BundleToPerfectSensor.bat")
+    output_temp = join(os.path.dirname(output), f"temp_{str(uuid.uuid4())[:5]}.tif")
+    dtype = 'uint16' if args.level == "DN" else 'float'
+    cmd = f"{otb_bat} -inp {pancromatic} -inxs {spectral} -out {output_temp} {dtype}"
+    subprocess.run(join(otbPath, "otbenv.bat"))
+    subprocess.run(cmd)
+    compress(output_temp, output)
 
 
 def clip_raster_by_mask_layer(input_raster, mask, output_raster, pixel_size=None, target_coords=None):
     pixel_size = f"-tr {pixel_size} {pixel_size} -tap" if pixel_size else ""
     target_coords = f"-t_srs {target_coords}" if target_coords else ""
     mask_name = os.path.splitext(os.path.basename(mask))[0]
-    clip_cmd = f"gdalwarp -of GTiff {target_coords} {pixel_size} -cutline {mask} -cl {mask_name} -crop_to_cutline -r cubic -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=IF_SAFER -multi -wo NUM_THREADS=ALL_CPUS -co NUM_THREADS=ALL_CPUS -overwrite {input_raster} {output_raster}"
+    gdalwarp = join(otbPath, r"bin\gdalwarp.exe")
+    clip_cmd = f"{gdalwarp} -of GTiff {target_coords} {pixel_size} -cutline {mask} -cl {mask_name} -crop_to_cutline -r cubic -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=IF_SAFER -multi -wo NUM_THREADS=ALL_CPUS -co NUM_THREADS=ALL_CPUS -overwrite {input_raster} {output_raster}"
     subprocess.run([x for x in clip_cmd.split(" ") if x != ""])
 
 
 def compress(input, output):
-    compress_cmd = "gdal_translate -of GTiff -co NUM_THREADS=ALL_CPUS -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=IF_SAFER -q {} {}".format(input, output)
+    logger.info("压缩中...")
+    gdal_translate = join(otbPath, r"bin\gdal_translate.exe")
+    compress_cmd = f"{gdal_translate} -of GTiff -co NUM_THREADS=ALL_CPUS -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=IF_SAFER {input} {output}"
     subprocess.run([x for x in compress_cmd.split(" ") if x != ""])
     os.remove(input)
 
 
 def mosaic(input_files, mosaic_file, resample="cubic"):
+    logger.info("镶嵌中...")
     paths = ""
     for file in input_files:
         paths = paths + f"{file}\n"
@@ -76,8 +112,10 @@ def mosaic(input_files, mosaic_file, resample="cubic"):
     txt = open(input_file_list, "w")
     txt.write(paths)
     txt.close()
-    buildvrt_cmd = "gdalbuildvrt -resolution highest -r {resample} -q -input_file_list {input_file_list} {vrt}".format(resample=resample, input_file_list=input_file_list, vrt=vrt)
-    translate_cmd = "gdal_translate -of GTiff -co NUM_THREADS=ALL_CPUS -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=IF_SAFER -q {vrt} {mosaic_file}".format(vrt=vrt, mosaic_file=mosaic_file)
+    gdalbuildvrt = join(otbPath, r"bin\gdalbuildvrt.exe")
+    gdal_translate = join(otbPath, r"bin\gdal_translate.exe")
+    buildvrt_cmd = f"{gdalbuildvrt} -resolution highest -r {resample} -input_file_list {input_file_list} {vrt}"
+    translate_cmd = f"{gdal_translate} -of GTiff -co NUM_THREADS=ALL_CPUS -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=IF_SAFER {vrt} {mosaic_file}"
     subprocess.run([x for x in  buildvrt_cmd.split(" ") if x != ""])
     subprocess.run([x for x in translate_cmd.split(" ") if x != ""])
     os.remove(input_file_list)
@@ -91,38 +129,35 @@ def save_txt(txt_path, contents, mode="a"):
 
 
 def build_pyramid(file):
-    build_pyramid_cmd = "gdaladdo {file} -r nearest -ro --config COMPRESS_OVERVIEW LZW --config BIGTIFF_OVERVIEW IF_SAFER".format(file=file)
+    logger.info("建金字塔中...")
+    gdaladdo = join(otbPath, r"bin\gdaladdo.exe")
+    build_pyramid_cmd = f"{gdaladdo} {file} -r nearest -ro --config COMPRESS_OVERVIEW LZW --config BIGTIFF_OVERVIEW IF_SAFER"
     subprocess.run([x for x in build_pyramid_cmd.split(" ") if x != ""])
+    return
 
 
 def stack(rasters, out_raster):
-    # Read in metadata
-    profile = rio.open(rasters[0], 'r').profile
-    count = 0
-    for raster in rasters:
-        count += rio.open(raster, 'r').count
-    profile.update(
-        count=count,
-    )
-    out_raster = rio.open(out_raster, 'w', **profile)
-    band_index = 0
-    for raster in rasters:
-        for band in rio.open(raster, "r").read():
-            band_index+=1
-            out_raster.write(band, band_index)
-    out_raster.close()
+    logger.info("波段堆叠中...")
+    count = sum([rasterio.open(raster).count for raster in rasters])
+
+    with rasterio.open(rasters[0], 'r') as src:
+        profile = src.profile
+        profile.update(count=count, BIGTIFF='IF_SAFER')
+
+        with rasterio.open(out_raster, 'w', **profile) as dst:
+            band_index = 0
+            for raster in rasters:
+                with rasterio.open(raster, "r") as src_raster:
+                    for idx in range(1, src_raster.count + 1):
+                        band = src_raster.read(indexes=idx)
+                        band_index += 1
+                        dst.write(band, band_index)
+
 
 class correction():
-    def __init__(self, input_raster, metadata=None):
-        super(correction, self).__init__()
-        self.IDataSet = gdal.Open(input_raster)
-        self.cols = self.IDataSet.RasterXSize
-        self.rows = self.IDataSet.RasterYSize
-        self.bands = self.IDataSet.RasterCount
-
-        # 读取辐射校正和大气校正所需参数:增益、偏移和光谱响应函数
-        self.config = json.load(open(os.path.join(os.path.dirname(__file__), "data", "RadiometricCorrectionParameter.json")))
-        # 获取json文件索引信息
+    def __init__(self, input_raster, metadata):
+        self.input_raster = input_raster
+        self.config = yaml.safe_load((open(join(appPath, "data", "AtmosphericCorrectionParameter.yaml"))))
         filename_split = os.path.basename(input_raster).split("_")
         self.SatelliteID = filename_split[0]
         self.SensorID = filename_split[1]
@@ -130,231 +165,262 @@ class correction():
         self.ImageType = "MUX" if "MUX" in filename_split[-1] else "MSS"
         self.ImageType = "PAN" if "PAN" in filename_split[-1] else self.ImageType
         self.metadata = metadata
-        self.rcfile = input_raster.replace(".tiff", "_rc_temp.tiff")
-        self.sixsfile = input_raster.replace(".tiff", "_6s_temp.tiff")
 
-    def radiometric(self, TOA=False):
-        # 设置输出波段
-        Driver = self.IDataSet.GetDriver()
-        trans = self.IDataSet.GetGeoTransform()
-        proj = self.IDataSet.GetProjection()
-        outDataset = Driver.Create(self.rcfile, self.cols, self.rows, self.bands, gdal.GDT_Float32)
-        outDataset.SetGeoTransform(trans)
-        outDataset.SetProjection(proj)
-        # 分别读取8个波段
-        for m in range(1, self.bands+1):
-            ImgBand = self.IDataSet.GetRasterBand(m)
-            outband = outDataset.GetRasterBand(m)
-            outband.SetNoDataValue(0)
-            # 获取对应波段的太阳辐照度ESUN，增益gain，偏移bias
-            params = self.RadiometricCalibration(m, TOA)
-            try:
-                Image = ImgBand.ReadAsArray(0, 0, self.cols, self.rows)
-                Image = np.where(Image != 0, (Image * params[-2] + params[-1]), 0)
-                if TOA:
-                    # Equation: TOA = (π∗Lλ∗d2)/(ESUNλ∗cosθs), d=1
-                    # https://semiautomaticclassificationmanual-v4.readthedocs.io/en/latest/remote_sensing.html#top-of-atmosphere-toa-reflectance
-                    cosine_solar_zenith = np.cos(np.deg2rad(float(xml.dom.minidom.parse(self.metadata).getElementsByTagName('SolarZenith')[0].firstChild.data)))
-                    Image = (np.pi * Image) / (params[0] * cosine_solar_zenith)
-                outband.WriteArray(Image, 0, 0)
-                outband.FlushCache()
-            except Exception as e:
-                pass
-        return self.rcfile
+        self.supported_sensor = ['GF1-PMS1/2', 
+                                 'GF1-WFV1/2/3/4',
+                                 'GF1B/C/D-PMS',
+                                 'GF2-PMS1/2',
+                                 'GF6-PMS',
+                                 'GF6-WFV',
+                                 'GF7-DLC',
+                                 'GF7-BWD',
+                                 'ZY303-TMS']
 
-    def atmospheric(self):
-        # 设置输出波段
-        Driver = self.IDataSet.GetDriver()
-        trans = self.IDataSet.GetGeoTransform()
-        proj = self.IDataSet.GetProjection()
-        outDataset = Driver.Create(self.sixsfile, self.cols, self.rows, self.bands, gdal.GDT_Float32)
-        outDataset.SetGeoTransform(trans)
-        outDataset.SetProjection(proj)
-        # 获取大气校正系数
-        AtcCof_list = self.get_ac_cof()
-        # 分别读取8个波段
-        for m in range(1, self.bands+1):
-            ImgBand = self.IDataSet.GetRasterBand(m)
-            outband = outDataset.GetRasterBand(m)
-            outband.SetNoDataValue(0)
-            AtcCofa, AtcCofb, AtcCofc = AtcCof_list[m - 1]
-            try:
-                Image = ImgBand.ReadAsArray(0, 0, self.cols, self.rows)
-                Image = np.where(Image != 0, AtcCofa * Image - AtcCofb, 0)
-                Image = np.where(Image != 0, (Image / (1 + AtcCofc * Image)) * 1000, 0)
-                outband.WriteArray(Image, 0, 0)
-                outband.FlushCache()
-            except:
-                pass
-        return self.sixsfile
+        self.is_valid = True
+        if 'ESUN' not in str(self.config.get(self.SatelliteID, {}).get(self.SensorID, {})):
+            logger.warning(f"缺少{self.SatelliteID}_{self.SensorID}的太阳辐照度（ESUN）参数，大气校正目前仅支持如下传感器：{self.supported_sensor}")
+            logger.warning("退出大气校正！")
+            self.is_valid = False  # Set is_valid to False if condition is met
+        
+    def apply_corrections(self):
+        with rasterio.open(self.input_raster) as src:
+            profile = src.profile
+            profile.update(dtype=np.float32, blockxsize=100, blockysize=100, BIGTIFF='IF_SAFER')
+            rasterTOA = self.input_raster.replace(".tif", f"_TOA.tif")
+            with rasterio.open(rasterTOA, 'w', **profile) as dst:
+                windows = [window for _, window in dst.block_windows()]
+                for window in tqdm(windows, desc="大气表观反射率计算中..."):
+                    data = src.read(window=window).astype(np.float32)  # Ensure float32
+                    data = self.radiometric_block(data, self.metadata)
+                    dst.write(data.astype(np.float32), window=window)
+        
+        dark_object_dns = self.calculate_dark_object(rasterTOA)
+        with rasterio.open(rasterTOA) as src:
+            rasterSR = self.input_raster.replace(".tif", f"_SR.tif")
+            with rasterio.open(rasterSR, 'w', **profile) as dst:
+                windows = [window for _, window in dst.block_windows()]
+                for window in tqdm(windows, desc="地表反射率计算中..."):
+                    data = src.read(window=window).astype(np.float32)  # Ensure float32
+                    data = self.DOS_correction(data, dark_object_dns)
+                    dst.write(data.astype(np.float32), window=window)
+        os.remove(self.input_raster)
+        os.remove(rasterTOA)
+        os.rename(rasterSR, self.input_raster)
 
-    def MeanDEM(self, pointUL, pointDR):
-        '''
-        计算影像所在区域的平均高程.
-        '''
+    def calculate_dark_object(self, inImage, patch_size=50, percentile=1):
+        logger.info("计算暗物体反射率...")
+        with rasterio.open(inImage, 'r') as src:
+            nodata = src.profile.get("nodata", None)
+            num_bands = src.count
+            min_values_per_band = [[] for _ in range(num_bands)]
+            # Generate windows based on patch_size if the image is not inherently blocked
+            nrows, ncols = src.shape
+            offsets = product(range(0, nrows, patch_size), range(0, ncols, patch_size))
+            windows = [((row_start, min(row_start + patch_size, nrows)), 
+                        (col_start, min(col_start + patch_size, ncols))) for row_start, col_start in offsets]
+            
+            for window in windows:
+                X = src.read(window=window)
+                if nodata is not None:
+                    mask = (X != nodata) & (X != 0)
+                else:
+                    mask = (X != 0)
+                for band in range(num_bands):
+                    X_masked = X[band][mask[band]]
+                    if X_masked.size > 0:
+                        min_value = np.min(X_masked)
+                        min_values_per_band[band].append(min_value)
+
+        # Compute the dark object DN for the entire image for each band using the min values
+        dark_object_dns_per_band = [np.percentile(min_values, percentile).astype(np.float32) for min_values in min_values_per_band]
+        
+        return dark_object_dns_per_band
+    
+    def radiometric_block(self, block, metadata):
+        """
+        Apply radiometric correction on the input block.
+        """
+        block = block.astype(np.float32)
+        bands, _, _ = block.shape
+        cosine_solar_zenith = np.cos(np.deg2rad(float(xml.dom.minidom.parse(metadata).getElementsByTagName('SolarZenith')[0].firstChild.data)))
+        for m in range(bands):
+            params = self.RadiometricCalibration(m+1)
+            # TOA calculation
+            block[m] = (block[m] * params[-2] + params[-1])
+            block[m] = (np.pi * block[m]) / (params[0] * cosine_solar_zenith)
+        return block
+
+    def DOS_correction(self, data, dark_object_dns):
+        """
+        Apply Dark Object Subtraction (DOS) correction on the input data.
+        """
+        data = data.astype(np.float32)  # Convert to float32 for calculations
+        for band in range(data.shape[0]):
+            data[band] -= dark_object_dns[band]
+            data[band] = np.clip(data[band], 0, None)
+        return data
+
+    def RadiometricCalibration(self, bandID):
+        # 读取增益、偏移、太阳辐照度参数
+        if self.SensorID.startswith('WFV'):
+            esun = self.config[self.SatelliteID][self.SensorID]['ESUN'][bandID - 1]
+            dct = self.config[self.SatelliteID][self.SensorID]['gain']
+            self.Year = str(min([int(k) for k in dct if k.isdigit()], key=lambda x: abs(x - int(self.Year))))
+            gain = self.config[self.SatelliteID][self.SensorID]['gain'][self.Year][bandID - 1]
+            offset = self.config[self.SatelliteID][self.SensorID]['offset'][self.Year][bandID - 1]
+        else:
+            esun = self.config[self.SatelliteID][self.SensorID][self.ImageType]['ESUN'][bandID - 1]
+            dct = self.config[self.SatelliteID][self.SensorID][self.ImageType]['gain']
+            self.Year = str(min([int(k) for k in dct if k.isdigit()], key=lambda x: abs(x - int(self.Year))))
+            gain = self.config[self.SatelliteID][self.SensorID][self.ImageType]['gain'][self.Year][bandID - 1]
+            offset = self.config[self.SatelliteID][self.SensorID][self.ImageType]['offset'][self.Year][bandID - 1]
+        return [esun, gain, offset]
+    
+
+def main(outputDirectory, dem, level, pansharpen, pyramid, files):
+    for i, file in enumerate(files):
+        # logger.warning(f"处理第{i+1}景数据中，共{len(files)}景数据")
+        logger.info(f"开始处理{file}")
+        assert " " not in file, "请确保输入数据的路径不包含空格！"
+        assert ".tar" in file, "仅支持原始tar压缩包，请不要自行解压！"
+
+        # Extract to outputDirectory
+        dataPath = join(outputDirectory, os.path.basename(file)[:-7])
         try:
-            DEM = os.path.join(os.path.dirname(__file__), 'data', 'GMTED2km.tif')
-            DEMIDataSet = gdal.Open(DEM)
-        except Exception as e:
-            pass
+            untar(file, dataPath)
+        except:
+            continue
 
-        DEMBand = DEMIDataSet.GetRasterBand(1)
-        geotransform = DEMIDataSet.GetGeoTransform()
-        # DEM分辨率
-        pixelWidth = geotransform[1]
-        pixelHight = geotransform[5]
+        # Get spectral rasters and pancromatic rasters
+        M, P = get_rasters_name(dataPath)
 
-        # DEM起始点：左上角，X：经度，Y：纬度
-        originX = geotransform[0]
-        originY = geotransform[3]
+        # RPC Orthorectification for spectral rasters
+        m_out_list = list()
+        for m in M:
+            logger.info("处理多光谱数据中...")
+            try:
+                m_in = join(dataPath, m)
+                m_out = join(outputDirectory, m)
+                rpc_ortho(m_in, dem, m_out)
+                m_out_list.append(m_out)
+            except:
+                continue
 
-        # 研究区左上角在DEM矩阵中的位置
-        yoffset1 = int((originY - pointUL['lat']) / pixelWidth)
-        xoffset1 = int((pointUL['lon'] - originX) / (-pixelHight))
-
-        # 研究区右下角在DEM矩阵中的位置
-        yoffset2 = int((originY - pointDR['lat']) / pixelWidth)
-        xoffset2 = int((pointDR['lon'] - originX) / (-pixelHight))
-
-        # 研究区矩阵行列数
-        xx = xoffset2 - xoffset1
-        yy = yoffset2 - yoffset1
-        # 读取研究区内的数据，并计算高程
-        DEMRasterData = DEMBand.ReadAsArray(xoffset1, yoffset1, xx, yy)
-
-        MeanAltitude = np.mean(DEMRasterData)
-        return MeanAltitude
-
-    def RadiometricCalibration(self, BandId, TOA):
-        # 如果当年定标系数未发布或太懒没写，使用最近一年的定标系数
-        dct = self.config["Parameter"][self.SatelliteID][self.SensorID]
-        self.Year = str(min([int(k) for k in dct if k.isdigit()], key=lambda x: abs(x - int(self.Year))))
-
-        params = list()
-        if self.SensorID[0:3] == "WFV":
-            Gain = self.config["Parameter"][self.SatelliteID][self.SensorID][self.Year]["gain"][BandId - 1]
-            Bias = self.config["Parameter"][self.SatelliteID][self.SensorID][self.Year]["offset"][BandId - 1]
-            if TOA:
-                ESUN = self.config["Parameter"][self.SatelliteID][self.SensorID]["2020"]["ESUN"][BandId - 1]
-                params.append(ESUN)
+        def ato_cor(m_out, metadata):
+            correction_obj = correction(m_out, metadata)
+            if correction_obj.is_valid:
+                correction_obj.apply_corrections()
+            return m_out
+        
+        if "AHSI" in M[0]:
+            # Stack GF5(GF5B, ZY1E)-VN, SW
+            # sort in [VN, SW] order
+            m_out_list.sort(reverse=True)
+            m_out = re.sub("_SW.geotiff|_VN.geotiff|_SW.tif|_VN.tif", ".tif", m_out_list[0])
+            stack(m_out_list, m_out)
+            metadata = re.sub("_SW.geotiff|_VN.geotiff", ".xml", m_in)
+            m_out = ato_cor(m_out, metadata) if level == "Surface_Reflectance" else m_out
+        elif "GF5B_VIMI" in M[0]:
+            # Stack GF5B-B1-6, B7-12
+            # sort in [B1-6, B7-12] order
+            m_out_list.sort(reverse=False)
+            m_out = re.sub("_B1_B6.tif[f]", ".tiff", m_out_list[0])
+            stack(m_out_list, m_out)
+            metadata = re.sub(".tiff", ".xml", m_in)
+            m_out = ato_cor(m_out, metadata) if level == "Surface_Reflectance" else m_out
+        elif "GF6_WFV" in M[0]:
+            m_out = re.sub("-[0-9].tiff", ".tiff", join(outputDirectory, M[0]))
+            mosaic(m_out_list, m_out)
+            [os.remove(m) for m in m_out_list]
+            metadata = re.sub("-[0-9].tiff", ".xml", m_in)
+            m_out = ato_cor(m_out, metadata) if level == "Surface_Reflectance" else m_out
         else:
-            Gain = self.config["Parameter"][self.SatelliteID][self.SensorID][self.Year][self.ImageType]["gain"][BandId - 1]
-            Bias = self.config["Parameter"][self.SatelliteID][self.SensorID][self.Year][self.ImageType]["offset"][BandId - 1]
-            if TOA:
-                ESUN = self.config["Parameter"][self.SatelliteID][self.SensorID]["2020"][self.ImageType]["ESUN"][BandId - 1]
-                params.append(ESUN)
-        params.append(Gain)
-        params.append(Bias)
+            for m_out in m_out_list:
+                metadata = re.sub(".tiff", ".xml", join(dataPath, os.path.basename(m_out)))
+                m_out = ato_cor(m_out, metadata) if level == "Surface_Reflectance" else m_out
 
-        return params
+        # 先大气校正再融合的顺序通常更为推荐，因为这样可以确保影像在融合前已经反映了地物的真实信息，并且可以保持影像的光谱一致性。
+        fusion_list = []
+        if pansharpen and len(P) > 0:
+            for p in P:
+                logger.info("处理全色数据中...")
+                try:
+                    p_in = join(dataPath, p)
+                    p_out = join(outputDirectory, p)
+                    rpc_ortho(p_in, dem, p_out)
+                    p_out = ato_cor(p_out, metadata) if level == "Surface_Reflectance" else p_out
+                    fusion = p_out.replace("PAN", "FUS")
+                    # Trying to find corresponding spectral dataset
+                    m = glob(p_out.rsplit("PAN", 1)[0] + "M*" + p_out.rsplit("PAN", 1)[1])[0]
+                    pansharpening_otb(m, p_out, fusion)
+                    fusion_list.append(fusion)
+                    # os.remove(m)
+                    # os.remove(p_out)
+                except Exception:
+                    logger.error("Error occurred: \n", traceback.format_exc())
+                    pass
 
-    # 6s大气校正
-    def get_ac_cof(self):
-        # 读取头文件
-        dom = xml.dom.minidom.parse(self.metadata)
-
-        # 6S模型
-        s = SixS()
-
-        # 传感器类型 自定义
-        s.geometry = Geometry.User()
-        s.geometry.solar_z = 90 - float(dom.getElementsByTagName('SolarZenith')[0].firstChild.data)
-        s.geometry.solar_a = float(dom.getElementsByTagName('SolarAzimuth')[0].firstChild.data)
-        s.geometry.view_z = 0
-        s.geometry.view_a = 0
-        # 日期
-        DateTimeparm = dom.getElementsByTagName('StartTime')[0].firstChild.data
-        DateTime = DateTimeparm.split(' ')
-        Date = DateTime[0].split('-')
-        s.geometry.month = int(Date[1])
-        s.geometry.day = int(Date[2])
-
-        # 中心经纬度
-        TopLeftLat = float(dom.getElementsByTagName('TopLeftLatitude')[0].firstChild.data)
-        TopLeftLon = float(dom.getElementsByTagName('TopLeftLongitude')[0].firstChild.data)
-        TopRightLat = float(dom.getElementsByTagName('TopRightLatitude')[0].firstChild.data)
-        TopRightLon = float(dom.getElementsByTagName('TopRightLongitude')[0].firstChild.data)
-        BottomRightLat = float(dom.getElementsByTagName('BottomRightLatitude')[0].firstChild.data)
-        BottomRightLon = float(dom.getElementsByTagName('BottomRightLongitude')[0].firstChild.data)
-        BottomLeftLat = float(dom.getElementsByTagName('BottomLeftLatitude')[0].firstChild.data)
-        BottomLeftLon = float(dom.getElementsByTagName('BottomLeftLongitude')[0].firstChild.data)
-
-        ImageCenterLat = (TopLeftLat + TopRightLat + BottomRightLat + BottomLeftLat) / 4
-
-        # 大气模式类型
-        if ImageCenterLat > -15 and ImageCenterLat < 15:
-            s.atmos_profile = Py6S.AtmosProfile.PredefinedType(Py6S.AtmosProfile.Tropical)
-
-        if ImageCenterLat > 15 and ImageCenterLat < 45:
-            if s.geometry.month > 4 and s.geometry.month < 9:
-                s.atmos_profile = Py6S.AtmosProfile.PredefinedType(Py6S.AtmosProfile.MidlatitudeSummer)
+        # Build pyramid, we only build for the final raster
+        if pyramid:
+            if "GF6_WFV" in M[0] or "GF5B_VIMI" in M[0] or "AHSI" in M[0]:
+                build_pyramid(m_out)
+            elif pansharpen and len(fusion_list) > 0:
+                [build_pyramid(fusion) for fusion in fusion_list]
             else:
-                s.atmos_profile = Py6S.AtmosProfile.PredefinedType(Py6S.AtmosProfile.MidlatitudeWinter)
+                [build_pyramid(m_out) for m_out in m_out_list]
 
-        if ImageCenterLat > 45 and ImageCenterLat < 60:
-            if s.geometry.month > 4 and s.geometry.month < 9:
-                s.atmos_profile = Py6S.AtmosProfile.PredefinedType(Py6S.AtmosProfile.SubarcticSummer)
-            else:
-                s.atmos_profile = Py6S.AtmosProfile.PredefinedType(Py6S.AtmosProfile.SubarcticWinter)
 
-        # 气溶胶类型大陆
-        s.aero_profile = Py6S.AtmosProfile.PredefinedType(AeroProfile.Continental)
+def get_rasters_name(dataPath):
+    all_file = next(os.walk(dataPath))[2]
+    # M is list of spectral rasters' filenames, P is list of pancromatic rasters' filenames
+    M = list(filter(lambda x: re.match('.*MUX.*.tiff|.*MSS.*.tiff|.*WFV.*.tiff|GF4_PMS.*.tiff|GF5_AHSI.*geotiff|GF5B_AHSI.*_VN.tif.*|GF5B_AHSI.*_SW.tif.*|GF5B_VIMI.*[0-9].tif.*|ZY1[E-F]_AHSI.*_VN.tif.*|ZY1[E-F]_AHSI.*_SW.tif.*|ZY1F_IRS_NSR.*.tif.*|CB04A_WPM.*MSS.tiff|HJ2[A-B]_CCD.*.tiff', x) != None, all_file))
+    P = list(filter(lambda x: re.match('.*PAN.*.tiff', x) != None, all_file))
+    assert len(M) > 0, "未找到数据！仅支持如下卫星型号：[CB04A_WPM, GF1_PMS, GF1_WFV, GF1B_PMS, GF1C_PMS, GF1D_PMS, GF2_PMS, GF4_PMI, GF5_AHSI, GF5B_AHSI, GF5B_VIMI, GF6_PMS, GF6_WFV, GF7_BWD, GF7_DLC, HJ2A_CCD, HJ2B_CCD, ZY1E_VNIC, ZY1F_AHSI, ZY303_TMS]"
+    return M, P
 
-        # 下垫面类型
-        s.ground_reflectance = Py6S.GroundReflectance.HomogeneousLambertian(0.36)
 
-        # 550nm气溶胶光学厚度,对应能见度为40km
-        s.aot550 = 0.14497
+if __name__ == "__main__":
+    # 获取编译后exe或py文本的根目录
+    if getattr(sys, 'frozen', False):
+        appPath = os.path.dirname(sys.executable)
+    else:
+        appPath = os.path.dirname(__file__)
 
-        # 通过研究去区的范围去求DEM高度。
-        pointUL = dict()
-        pointDR = dict()
-        pointUL["lat"] = max(TopLeftLat, TopRightLat, BottomRightLat, BottomLeftLat)
-        pointUL["lon"] = min(TopLeftLon, TopRightLon, BottomRightLon, BottomLeftLon)
-        pointDR["lat"] = min(TopLeftLat, TopRightLat, BottomRightLat, BottomLeftLat)
-        pointDR["lon"] = max(TopLeftLon, TopRightLon, BottomRightLon, BottomLeftLon)
-        meanDEM = (self.MeanDEM(pointUL, pointDR)) * 0.001
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--outputDirectory', dest='outputDirectory',
+                        help='Folder to store preprocessed files',
+                        type=str, default=None)
+    parser.add_argument('--dem', dest='dem',
+                        help='path for dem',
+                        type=str, default=join(appPath, 'data', 'GMTED2km.tif'))
+    parser.add_argument('--otbPath', dest='otbPath',
+                        help='path for Orfeo Toolbox',
+                        type=str, default=glob(join(appPath, 'OTB-*-Win64'))[0])
+    parser.add_argument('--level', dest='level',
+                        help='Processing level, options: DN, Surface_Reflectance',
+                        type=str, default='DN')                    
+    parser.add_argument('--pansharpen', dest='pansharpen',
+                        help='Whether to perform pansharpening',
+                        action='store_true', default=False)
+    parser.add_argument('--pyramid', dest='pyramid',
+                        help='Whether to build pyramid',
+                        action='store_true', default=False)
+    parser.add_argument('--cache', dest='cache',
+                        help='Set GDAL raster block cache size, may speed up processing with higher percentage, default is 5% of usable physical RAM',
+                        type=str, default='5%')
+    parser.add_argument('--files', dest='files',
+                        help='List of files to process',
+                        nargs='+', default=None)
+    args = parser.parse_args()
 
-        # 研究区海拔、卫星传感器轨道高度
-        s.altitudes = Altitudes()
-        s.altitudes.set_target_custom_altitude(meanDEM)
-        s.altitudes.set_sensor_satellite_level()
-        s.atmos_corr = AtmosCorr.AtmosCorrLambertianFromReflectance(-0.1)
-        # 获取s.wavelength参数
-        sensor = self.SatelliteID + "-" + self.SensorID
-        support_sensors = ["GF1-PMS1", "GF1-PMS2", "GF1-WFV1", "GF1-WFV2", "GF1-WFV3", "GF1-WFV4", "GF1B-PMS", "GF1C-PMS", "GF1D-PMS", "GF2-PMS1", "GF2-PMS2", "GF6-WFV"]
+    if args.pansharpen:
+        # 确保路径为全英文
+        for f in args.files:
+            assert f.isascii(), "镶嵌前，请确保输入数据的路径不包含中文！"
 
-        if sensor == support_sensors[-1]:
-            #print("Warning: A minimum of 64G RAM is required for GF6-WFV atmospheric correction")
-            wavelengths = [(0.45, 0.52), (0.52, 0.59), (0.63, 0.69), (0.77, 0.89), (0.69, 0.73), (0.73, 0.77), (0.40, 0.45), (0.59, 0.63)]
-            s_wl_list = self.get_py6s_wavelength(wavelengths)
-        elif sensor in support_sensors[:-1]:
-            wavelengths = [(0.45, 0.52), (0.52, 0.59), (0.63, 0.69), (0.77, 0.89)]
-            s_wl_list = self.get_py6s_wavelength(wavelengths)
-        elif sensor not in support_sensors and self.bands == 4:
-            # Using bilitin spectral reflectance function of Sentinel-2
-            s_wl_list = [Wavelength(PredefinedWavelengths.S2A_MSI_02),
-                         Wavelength(PredefinedWavelengths.S2A_MSI_03),
-                         Wavelength(PredefinedWavelengths.S2A_MSI_04),
-                         Wavelength(PredefinedWavelengths.S2A_MSI_08)]
-        else:
-            print(f"ERROR: Atmospheric correction for {sensor} is not supported yet")
-
-        AtcCof_list = list()
-        for s_wl in s_wl_list:
-            s.wavelength = s_wl
-            # 运行6s大气模型
-            s.run()
-            xa = s.outputs.coef_xa
-            xb = s.outputs.coef_xb
-            xc = s.outputs.coef_xc
-            AtcCof_list.append((xa, xb, xc))
-        return AtcCof_list
-
-    def get_py6s_wavelength(self, wavelengths):
-        s_wl_list = list()
-        for i, wl in enumerate(wavelengths):
-            SRFband = self.config["Parameter"][self.SatelliteID][self.SensorID]["SRF"][f"{str(i+1)}"]
-            s_wl = Wavelength(wl[0], wl[1], SRFband)
-            s_wl_list.append(s_wl)
-        return s_wl_list
+    otbPath = args.otbPath
+    os.environ['GDAL_DATA'] = join(otbPath, r"share\data")
+    os.environ['PROJ_LIB'] = join(otbPath, r"share\proj")
+    os.environ['GDAL_DRIVER_PATH'] = 'disable'
+    os.environ["GDAL_CACHEMAX"] = args.cache
+    main(args.outputDirectory, args.dem, args.level, args.pansharpen, args.pyramid, args.files)
