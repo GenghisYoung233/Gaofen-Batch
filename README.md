@@ -39,8 +39,6 @@
 2. 双击GaofenBatch.exe，添加待处理数据（原始.tar.gz压缩包）。
 3. 点击“运行”按钮，选择输出文件夹，程序开始逐个解压并处理数据。
 
-如果你没有数据，可从[这里](https://gaofen-batch-r2.remotesensing.top)获取测试数据。
-
 ## 演示Gif（×10倍速）
 
 <img src="/assets/GaofenBatch.gif" alt="demo" width="500"/>
