@@ -45,6 +45,14 @@
 
 ## 从源码编译
 
+### 环境要求
+
+- **Python**: 3.14+ (推荐使用 [uv](https://github.com/astral-sh/uv) 管理 Python 版本)
+- **Node.js**: 用于 Electron 前端打包
+- **包管理**: 使用 [uv](https://github.com/astral-sh/uv) 管理 Python 依赖
+
+### 开始编译
+
 1. 克隆本仓库：
     ```bash
     git clone https://github.com/GenghisYoung233/Gaofen-Batch.git
@@ -56,10 +64,10 @@
     npm run pack
     ```
 
-3. 安装Python依赖
+3. 安装Python依赖（使用 uv）：
 
     ```bash
-    pip install -r requirements.txt
+    uv sync
     ```
 
 4. 编译Python：
