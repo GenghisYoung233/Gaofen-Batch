@@ -194,26 +194,20 @@ jobs:
           path: win_64
           
       - run: |
-          7z x -o"win_64" "bin.zip" 
+          7z x -o"win_64" "bin.zip"
           7z x -o"win_64/bin" "OTB-9.0.0-Win64.zip"
-          dir
-          dir "win_64"
-          dir "win_64/bin"
-          dir "win_64/bin/OTB-9.0.0-Win64"
-          7z a -tzip win_64.zip win_64/*
-
 
       - name: Upload
         uses: actions/upload-artifact@v7.0.1
         with:
           name: GFB_2.0_win_64
-          path: "win_64.zip"
+          path: win_64
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: win_64.zip
+          files: win_64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
