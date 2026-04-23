@@ -40,19 +40,17 @@ jobs:
         with:
           name: OTB-9.0.0-Win64
           path: OTB-9.0.0-Win64.zip
-          # A file, directory or wildcard pattern that describes what to upload
-          path: "OTB-9.0.0-Win64.zip"
 
   build_python_app:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Get pip cache dir
         id: pip-cache
         run: echo "dir=$(pip cache dir)" >> ${env:GITHUB_OUTPUT}
       - name: pip cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ steps.pip-cache.outputs.dir }}
           key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
@@ -81,9 +79,7 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          # Artifact name
           name: bin
-          # A file, directory or wildcard pattern that describes what to upload
           path: "bin.zip"
 
 
@@ -91,27 +87,19 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      
- 
+
       - name: Setup Node.js environment
         uses: actions/setup-node@v4
         with:
-          # Version Spec of the version to use. Examples: 12.x, 10.15.1, >=10.15.0.
-          # node-version: 20.x 
-          # File containing the version Spec of the version to use.  Examples: package.json, .nvmrc, .node-version, .tool-versions.
-          architecture: package.json
-          # Set this option if you want the action to check for the latest available version that satisfies the version spec.
-          check-latest: true
-          # Used to specify a package manager for caching in the default directory. Supported values: npm, yarn, pnpm.
+          node-version: '20.x'
           cache: npm
-          # Used to specify the path to a dependency file: package-lock.json, yarn.lock, etc. Supports wildcards or a list of file names for caching multiple dependencies.
           cache-dependency-path: package-lock.json
       - name: Get npm cache directory
         id: npm-cache-dir
         shell: pwsh
         run: echo "dir=$(npm config get cache)" >> ${env:GITHUB_OUTPUT}
       - name: npm cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: npm-cache # use this to check for `cache-hit` ==> if: steps.npm-cache.outputs.cache-hit != 'true'
         with:
           path: ${{ steps.npm-cache-dir.outputs.dir }}
