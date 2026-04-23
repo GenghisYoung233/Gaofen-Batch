@@ -30,7 +30,7 @@ jobs:
           }
           $url = gh api repos/${{ github.repository }}/actions/runs/$run/artifacts --jq '.artifacts[0].archive_download_url'
           Write-Host "Downloading from: $url"
-          curl -L -o OTB-9.0.0-Win64.zip "$url"
+          curl -L -H "Authorization: Bearer $env:GH_TOKEN" -o OTB-9.0.0-Win64.zip "$url"
       - name: Check downloaded file
         shell: pwsh
         run: |
