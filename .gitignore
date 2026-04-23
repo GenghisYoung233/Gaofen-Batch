@@ -13,7 +13,6 @@ main.build/
 main.dist/
 main.onefile-build
 main.exe
-main.spec
 
 # venv
 venv/

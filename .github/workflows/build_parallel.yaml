@@ -83,7 +83,7 @@ jobs:
       - name: building
         run: |
            uv sync --extra dev
-           uv run pyinstaller main.py
+           uv run pyinstaller main.spec
 
            cp -r "data" "dist/main"
            cp -r "dist/main" "."
