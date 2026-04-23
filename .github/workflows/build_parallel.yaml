@@ -18,32 +18,28 @@ jobs:
   download_otb:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: mkdir OTB-9.0.0-Win64
-      - name: Get otb cache directory
-        id: otb-cache
-        shell: pwsh
-        run: echo "dir=$(pwd)\OTB-9.0.0-Win64" >> ${env:GITHUB_OUTPUT}
-      - name: otb cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.otb-cache.outputs.dir }}
-          key: ${{ runner.os }}-otb-${{ hashFiles('**/main.py') }}
-          restore-keys: |
-            ${{ runner.os }}-otb-            
-      - if: ${{ steps.otb-cache.outputs.cache-hit != 'true'}}
-        name: download OTB-9.0.0-Win64.zip
+      - name: Download OTB from latest download_otb workflow
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://www.orfeo-toolbox.org/packages/archives/OTB/OTB-9.0.0-win64.zip" -OutFile "OTB-9.0.0-Win64.zip"
-          Expand-Archive -Path "OTB-9.0.0-Win64.zip" -DestinationPath "OTB-9.0.0-Win64" -Force
-      - run: |
-          7z a -tzip OTB-9.0.0-Win64.zip  OTB-9.0.0-Win64/*
+          $run = gh run list --repo ${{ github.repository }} --workflow=download_otb.yml --status=success --json databaseId --jq '.[0].databaseId'
+          if (-not $run) {
+            Write-Error "No successful download_otb workflow run found"
+            exit 1
+          }
+          $url = gh api repos/${{ github.repository }}/actions/runs/$run/artifacts --jq '.artifacts[0].archive_download_url'
+          Write-Host "Downloading from: $url"
+          curl -L -o OTB-9.0.0-Win64.zip "$url"
+      - name: Extract OTB
+        shell: pwsh
+        run: Expand-Archive -Path "OTB-9.0.0-Win64.zip" -DestinationPath "OTB-9.0.0-Win64" -Force
+      - name: Re-zip OTB for artifact
+        shell: pwsh
+        run: 7z a -tzip OTB-9.0.0-Win64.zip OTB-9.0.0-Win64/*
       - name: Upload OTB
         uses: actions/upload-artifact@v4
         with:
-          # Artifact name
           name: OTB-9.0.0-Win64
+          path: OTB-9.0.0-Win64.zip
           # A file, directory or wildcard pattern that describes what to upload
           path: "OTB-9.0.0-Win64.zip"
 
