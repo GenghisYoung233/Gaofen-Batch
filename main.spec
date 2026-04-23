@@ -6,14 +6,17 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=[
+        'rasterio._features',
+        'rasterio._warp',
+        'rasterio._io',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
     optimize=2,
-    collect_all=['rasterio'],
 )
 pyz = PYZ(a.pure)
 
