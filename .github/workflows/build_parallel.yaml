@@ -17,6 +17,8 @@ concurrency:
 jobs:
   download_otb:
     runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Download OTB from latest download_otb workflow
         shell: pwsh
