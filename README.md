@@ -1,10 +1,12 @@
-<img src="https://raw.githubusercontent.com/GenghisYoung233/Gaofen-Batch/main/assets/app_icon.png" alt="logo" align="left" height="100"/>
-
+<!-- markdownlint-disable MD033 -->
 # Gaofen Batch
+
+<img src="https://raw.githubusercontent.com/GenghisYoung233/Gaofen-Batch/main/assets/app_icon.png" alt="logo" align="left" height="100"/>
 
 基于rasterio和Orfeo Toolbox开发的国产卫星影像预处理工具，前端由Electron驱动，支持批量处理。
 
-### 特性:
+## 特性
+
 - 😉 ~~GDAL~~ rasterio 驱动，省时高效，结果可靠。
 - 😋 解压即可运行，可视化界面，小白友好。
 
@@ -54,11 +56,13 @@
 ### 开始编译
 
 1. 克隆本仓库：
+
     ```bash
     git clone https://github.com/GenghisYoung233/Gaofen-Batch.git
     ```
 
 2. 安装并打包Electron：
+
     ```bash
     npm install
     npm run pack
@@ -96,7 +100,7 @@
 2. 我看不懂编译说明
 
     ~~请移步 `Github Action`查看具体执行流程 ，本项目的自动编译由Github Action驱动。~~ 还没调试好。
-    
+
     **请不要在生产环境使用action内编译的版本，他们不一定是稳定的！**
 
 3. 有关跨平台支持
@@ -109,8 +113,8 @@
 
 ## TODO
 
-- [ ] 解决action编译版无法使用的问题
+- [ ] 移除OTB依赖
 
-- [ ] Linux支持
+- [ ] Linux打包
 
 - [ ] 支持高分系列15米级数据正射校正
