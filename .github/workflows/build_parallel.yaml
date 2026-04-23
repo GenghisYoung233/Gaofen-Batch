@@ -197,10 +197,10 @@ jobs:
           7z x -o"win_64" "bin.zip"
           7z x -o"win_64/bin" "OTB-9.0.0-Win64.zip"
 
-      - name: Upload
+      - name: Upload artifact
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: GFB_2.0_win_64
+          name: GFB_2.0_${{ github.ref_name }}_win_64
           path: win_64
 
       - name: Create Release
@@ -208,6 +208,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: win_64
+          name: GFB_2.0 ${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
