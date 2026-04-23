@@ -126,7 +126,6 @@ jobs:
   pack_app:
     needs: [download_otb, build_python_app, build_electron_app]
     runs-on: windows-latest
-    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: actions/download-artifact@v8.0.1
@@ -194,12 +193,11 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v7.0.1
         with:
-          # Artifact name
           name: GFB_2.0_win_64
-          # A file, directory or wildcard pattern that describes what to upload
           path: "win_64.zip"
 
       - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: win_64.zip
