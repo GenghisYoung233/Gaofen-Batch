@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
 jobs:
   download_otb:
     runs-on: windows-latest
@@ -25,7 +30,7 @@ jobs:
         name: download OTB-9.0.0-Win64.zip
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://www.orfeo-toolbox.org/packages/OTB-9.0.0-Win64.zip" -OutFile "OTB-9.0.0-Win64.zip"
+          Invoke-WebRequest -Uri "https://www.orfeo-toolbox.org/packages/archives/OTB/OTB-9.0.0-win64.zip" -OutFile "OTB-9.0.0-Win64.zip"
           Expand-Archive -Path "OTB-9.0.0-Win64.zip" -DestinationPath "OTB-9.0.0-Win64" -Force
       - run: |
           7z a -tzip OTB-9.0.0-Win64.zip  OTB-9.0.0-Win64/*
@@ -131,6 +136,7 @@ jobs:
   pack_app:
     needs: [download_otb, build_python_app, build_electron_app]
     runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -202,4 +208,11 @@ jobs:
           name: GFB_2.0_win_64
           # A file, directory or wildcard pattern that describes what to upload
           path: "win_64.zip"
-  
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: win_64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

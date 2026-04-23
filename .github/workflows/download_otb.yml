@@ -12,7 +12,7 @@ jobs:
       - name: download OTB-9.0.0-Win64.zip
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://www.orfeo-toolbox.org/packages/OTB-9.0.0-Win64.zip" -OutFile "OTB-9.0.0-Win64.zip"
+          Invoke-WebRequest -Uri "https://www.orfeo-toolbox.org/packages/archives/OTB/OTB-9.0.0-win64.zip" -OutFile "OTB-9.0.0-Win64.zip"
           Expand-Archive -Path "OTB-9.0.0-Win64.zip" -DestinationPath "OTB-9.0.0-Win64" -Force
       
       - run: 7z a -tzip OTB-9.0.0-Win64.zip OTB-9.0.0-Win64/*
