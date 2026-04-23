@@ -17,13 +17,13 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ steps.pip-cache.outputs.dir }}
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-pip-
       - name: install python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.14'
           cache: 'pip' # caching pip dependencies
 
       - run: mkdir OTB-9.0.0-Win64
@@ -40,11 +40,10 @@ jobs:
             ${{ runner.os }}-otb-            
       - if: ${{ steps.otb-cache.outputs.cache-hit != 'true'}}
         name: download OTB-9.0.0-Win64.zip
-        uses: gamedev-thingy/Download-Extract@done
-        with:
-          url: https://www.orfeo-toolbox.org/packages/OTB-9.0.0-Win64.zip
-          destination: OTB-9.0.0-Win64
-          ZIPname: OTB-9.0.0-Win64
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://www.orfeo-toolbox.org/packages/OTB-9.0.0-Win64.zip" -OutFile "OTB-9.0.0-Win64.zip"
+          Expand-Archive -Path "OTB-9.0.0-Win64.zip" -DestinationPath "OTB-9.0.0-Win64" -Force
  
       - name: Setup Node.js environment
         uses: actions/setup-node@v4
@@ -72,10 +71,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
+      - name: install uv
+        run: pip install uv
+
       - name: building and pack
         run: |
-           pip install -r requirements.txt
-           pip install pyinstaller
+           uv sync
+           uv pip install pyinstaller
            pyinstaller main.py
            npm install
            npm run pack

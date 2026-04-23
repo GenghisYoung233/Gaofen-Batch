@@ -10,11 +10,10 @@ jobs:
     steps:
       - run: mkdir OTB-9.0.0-Win64
       - name: download OTB-9.0.0-Win64.zip
-        uses: gamedev-thingy/Download-Extract@done
-        with:
-          url: https://www.orfeo-toolbox.org/packages/OTB-9.0.0-Win64.zip
-          destination: OTB-9.0.0-Win64
-          ZIPname: OTB-9.0.0-Win64
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://www.orfeo-toolbox.org/packages/OTB-9.0.0-Win64.zip" -OutFile "OTB-9.0.0-Win64.zip"
+          Expand-Archive -Path "OTB-9.0.0-Win64.zip" -DestinationPath "OTB-9.0.0-Win64" -Force
       
       - run: 7z a -tzip OTB-9.0.0-Win64.zip OTB-9.0.0-Win64/*
       
