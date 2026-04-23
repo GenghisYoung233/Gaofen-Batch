@@ -31,6 +31,19 @@ jobs:
           $url = gh api repos/${{ github.repository }}/actions/runs/$run/artifacts --jq '.artifacts[0].archive_download_url'
           Write-Host "Downloading from: $url"
           curl -L -o OTB-9.0.0-Win64.zip "$url"
+      - name: Check downloaded file
+        shell: pwsh
+        run: |
+          if (Test-Path "OTB-9.0.0-Win64.zip") {
+            $size = (Get-Item "OTB-9.0.0-Win64.zip").Length
+            Write-Host "Downloaded file size: $size bytes"
+            if ($size -lt 1000) {
+              Write-Host "File is too small, likely an error page"
+              Get-Content "OTB-9.0.0-Win64.zip" | Select-Object -First 5
+            }
+          } else {
+            Write-Error "File not found"
+          }
       - name: Extract OTB
         shell: pwsh
         run: Expand-Archive -Path "OTB-9.0.0-Win64.zip" -DestinationPath "OTB-9.0.0-Win64" -Force
