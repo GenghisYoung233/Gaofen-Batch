@@ -1,7 +1,7 @@
 {
   "name": "gaofen-batch",
   "version": "0.1.0",
-  "description": "Gaofen-Batch, streamlines raster preprocessing of China-made satellite. Powered by GDAL and Electron.",
+  "description": "Gaofen-Batch, streamlines raster preprocessing of China-made satellite. Powered by rasterio and Orfeo Toolbox.",
   "main": "main.js",
   "scripts": {
     "pack": "electron-builder --dir",

@@ -1,0 +1,214 @@
+name: Build Windows Parallel
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  download_otb:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download OTB from latest download_otb workflow
+        shell: pwsh
+        run: |
+          $run = gh run list --repo ${{ github.repository }} --workflow=download_otb.yml --status=success --json databaseId --jq '.[0].databaseId'
+          if (-not $run) {
+            Write-Error "No successful download_otb workflow run found"
+            exit 1
+          }
+          $url = gh api repos/${{ github.repository }}/actions/runs/$run/artifacts --jq '.artifacts[0].archive_download_url'
+          Write-Host "Downloading from: $url"
+          curl -L -H "Authorization: Bearer $env:GH_TOKEN" -o OTB-9.0.0-Win64.zip "$url"
+      - name: Check downloaded file
+        shell: pwsh
+        run: |
+          if (Test-Path "OTB-9.0.0-Win64.zip") {
+            $size = (Get-Item "OTB-9.0.0-Win64.zip").Length
+            Write-Host "Downloaded file size: $size bytes"
+            if ($size -lt 1000) {
+              Write-Host "File is too small, likely an error page"
+              Get-Content "OTB-9.0.0-Win64.zip" | Select-Object -First 5
+            }
+          } else {
+            Write-Error "File not found"
+          }
+      - name: Extract OTB
+        shell: pwsh
+        run: Expand-Archive -Path "OTB-9.0.0-Win64.zip" -DestinationPath "OTB-9.0.0-Win64" -Force
+      - name: Re-zip OTB for artifact
+        shell: pwsh
+        run: 7z a -tzip OTB-9.0.0-Win64.zip OTB-9.0.0-Win64/*
+      - name: Upload OTB
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: OTB-9.0.0-Win64
+          path: OTB-9.0.0-Win64.zip
+
+  build_python_app:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Get pip cache dir
+        id: pip-cache
+        run: echo "dir=$(pip cache dir)" >> ${env:GITHUB_OUTPUT}
+      - name: pip cache
+        uses: actions/cache@v5.0.5
+        with:
+          path: ${{ steps.pip-cache.outputs.dir }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: install python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip' # caching pip dependencies
+
+      - name: install uv
+        run: pip install uv
+
+      - name: building
+        run: |
+           uv sync --extra dev
+           uv run pyinstaller main.spec
+
+           cp -r "data" "dist/main"
+           cp -r "dist/main" "."
+           ren "main" "bin"
+
+           7z a -tzip bin.zip bin/*
+
+      - name: Upload
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: bin
+          path: "bin.zip"
+
+
+  build_electron_app:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: '20.x'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Get npm cache directory
+        id: npm-cache-dir
+        shell: pwsh
+        run: echo "dir=$(npm config get cache)" >> ${env:GITHUB_OUTPUT}
+      - name: npm cache
+        uses: actions/cache@v5.0.5
+        id: npm-cache # use this to check for `cache-hit` ==> if: steps.npm-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: building and pack
+        run: |
+           npm install
+           npm run pack
+           tree
+
+      - name: Upload
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          # Artifact name
+          name: electron_app
+          # A file, directory or wildcard pattern that describes what to upload
+          path: "dist/win-unpacked"
+
+  pack_app:
+    needs: [download_otb, build_python_app, build_electron_app]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          # Name of the artifact to download.
+          # If unspecified, all artifacts for the run are downloaded.
+          # Optional.
+          name: OTB-9.0.0-Win64
+
+          # Destination path. Supports basic tilde expansion.
+          # Optional. Default is $GITHUB_WORKSPACE
+          # path:
+
+          # A glob pattern to the artifacts that should be downloaded.
+          # Ignored if name is specified.
+          # Optional.
+          # pattern:
+
+          # When multiple artifacts are matched, this changes the behavior of the destination directories.
+          # If true, the downloaded artifacts will be in the same directory specified by path.
+          # If false, the downloaded artifacts will be extracted into individual named directories within the specified path.
+          # Optional. Default is 'false'
+          # merge-multiple:
+
+          # The GitHub token used to authenticate with the GitHub API.
+          # This is required when downloading artifacts from a different repository or from a different workflow run.
+          # Optional. If unspecified, the action will download artifacts from the current repo and the current workflow run.
+          # github-token:
+
+          # The repository owner and the repository name joined together by "/".
+          # If github-token is specified, this is the repository that artifacts will be downloaded from.
+          # Optional. Default is ${{ github.repository }}
+          repository: ${{ github.repository }}
+
+          # The id of the workflow run where the desired download artifact was uploaded from.
+          # If github-token is specified, this is the run that artifacts will be downloaded from.
+          # Optional. Default is ${{ github.run_id }}
+          # run-id: 
+      
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          # Name of the artifact to download.
+          # If unspecified, all artifacts for the run are downloaded.
+          # Optional.
+          name: bin
+
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          # Name of the artifact to download.
+          # If unspecified, all artifacts for the run are downloaded.
+          # Optional.
+          name: electron_app
+          path: win_64
+          
+      - run: |
+          7z x -o"win_64" "bin.zip"
+          7z x -o"win_64/bin" "OTB-9.0.0-Win64.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: GFB_${{ github.ref_name }}_win_64
+          path: win_64
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: win_64
+          name: GFB ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
