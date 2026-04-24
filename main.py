@@ -511,7 +511,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--cache",
         dest="cache",
-        help=r"Set GDAL raster block cache size, may speed up processing with higher percentage, default is 5% of usable physical RAM",
+        help="Set GDAL raster block cache size, may speed up processing with higher percentage, default is 5%% of usable physical RAM",
         type=str,
         default="5%",
     )
